@@ -5,6 +5,9 @@
 #include <OpenMpC/solver/UnconstrainedMpc.h>
 #include <chrono>
 #include <iostream>
+#include <XBotInterface/RtLog.hpp>
+
+using XBot::Logger;
 
 mdof::Walker::Options::Options()
 {
@@ -44,13 +47,13 @@ void mdof::Walker::sagittal_setup()
     auto tic = std::chrono::high_resolution_clock::now();
     sag_lqr.compute();
     auto toc = std::chrono::high_resolution_clock::now();
-    std::cout << "Mpc law for sagittal plane computed in " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(toc-tic).count() / 1000.0 << " ms" << std::endl;
+    Logger::info() << "Mpc law for sagittal plane computed in " << 
+        std::chrono::duration_cast<std::chrono::microseconds>(toc-tic).count() / 1000.0 << " ms" << Logger::endl();
     
     _sag_Kx = sag_lqr.getStateFeedbackGain();
     _sag_Kv = sag_lqr.getOutputFeedforwardGain("vel");
     
-    std::cout << "Gain for sagittal plane is:\n" << _sag_Kx << std::endl;
+    Logger::info() << "Gain for sagittal plane is:\n" << _sag_Kx << Logger::endl();
 }
 
 
@@ -68,8 +71,8 @@ void mdof::Walker::lateral_setup()
     auto tic = std::chrono::high_resolution_clock::now();
     lat_lqr.compute();
     auto toc = std::chrono::high_resolution_clock::now();
-    std::cout << "Mpc law for lateral plane computed in " << 
-        std::chrono::duration_cast<std::chrono::microseconds>(toc-tic).count() / 1000.0 << " ms" << std::endl;
+    Logger::info() << "Mpc law for lateral plane computed in " << 
+        std::chrono::duration_cast<std::chrono::microseconds>(toc-tic).count() / 1000.0 << " ms" << Logger::endl();
     
     _lat_Kx = lat_lqr.getStateFeedbackGain();
     _lat_Kv = lat_lqr.getOutputFeedforwardGain("vel");
@@ -82,7 +85,7 @@ void mdof::Walker::lateral_setup()
     
     _lat_Kstep = lat_lqr.getOutputFeedforwardGainPreview("zmp")*dstep_ffwd;
     
-    std::cout << "Gain for lateral plane is:\n" << _lat_Kx << std::endl;
+    Logger::info() << "Gain for lateral plane is:\n" << _lat_Kx << Logger::endl();
     
 }
 
@@ -127,7 +130,7 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
                               state.com_vel.x(),
                               _current_zmp.x();
         
-        std::cout << "Current extend sagittal state is: " << sag_extended_state.transpose() << std::endl;
+        Logger::info() << "Current extend sagittal state is: " << sag_extended_state.transpose() << Logger::endl();
                               
         Scalar sag_next_step = _sag_Kx * sag_extended_state + _sag_Kv * _vref_x;
         Scalar sag_u_nom = _sag_Kx * _ext_state + _sag_Kv * _vref_x;
@@ -138,7 +141,7 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
                               state.com_vel.y(),
                               _current_zmp.y();
                               
-        std::cout << "Current extend lateral state is: " << lat_extended_state.transpose() << std::endl;
+        Logger::info() << "Current extend lateral state is: " << lat_extended_state.transpose() << Logger::endl();
                               
         double lat_next_step_ref = _opt.step_width / 2.0 * (_current_swing_leg == 0 ? 1 : -1);
                               
@@ -158,14 +161,14 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
         ref.t_goal[_current_swing_leg]  = time + _opt.step_duration * 0.8; // HACK HARDCODED
         ref.eq_foot_pos = ref.foot_pos_goal[_current_swing_leg];
         
-        std::cout << "Computed step  : " << computed_step.transpose() << std::endl;
-        std::cout << "Target foot pos: " << _current_swing_foot_target.transpose() << std::endl;
+        Logger::info() << "Computed step  : " << computed_step.transpose() << Logger::endl();
+        Logger::info() << "Target foot pos: " << _current_swing_foot_target.transpose() << Logger::endl();
         
         static auto lipext = MakeLipmExtended(OMEGA, _opt.step_duration);
         lipext->integrate(sag_extended_state, sag_next_step, _opt.step_duration, sag_extended_state);
         lipext->integrate(_ext_state, sag_u_nom, _opt.step_duration, _ext_state);
-        std::cout << "Nominal next sagittal state is  : " << _ext_state.transpose() << std::endl;
-        std::cout << "Expecting next sagittal state as: " << sag_extended_state.transpose() << std::endl;
+        Logger::info() << "Nominal next sagittal state is  : " << _ext_state.transpose() << Logger::endl();
+        Logger::info() << "Expecting next sagittal state as: " << sag_extended_state.transpose() << Logger::endl();
     }
     
     /* Sagittal update */
