@@ -154,23 +154,24 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
         computed_step << sag_next_step, lat_next_step;
         _current_swing_foot_target = computed_step + _current_zmp;
         _last_step_time = time;
-        ref.foot_contact[_current_swing_leg] = false;
-        ref.foot_pos_start[_current_swing_leg] = ref.foot_pos[_current_swing_leg];
-        ref.foot_pos_goal[_current_swing_leg].head<2>() = _current_swing_foot_target;
-        ref.t_start[_current_swing_leg] = time;
-        ref.t_goal[_current_swing_leg]  = time + _opt.step_duration * 0.8; // HACK HARDCODED
-        ref.eq_foot_pos = ref.foot_pos_goal[_current_swing_leg];
+        ref.eq_foot_pos.head<2>() = _current_swing_foot_target;
+        if(computed_step.norm() > 0.1)
+        {
+            ref.foot_contact[_current_swing_leg] = false;
+            ref.foot_pos_start[_current_swing_leg] = ref.foot_pos[_current_swing_leg];
+            ref.foot_pos_goal[_current_swing_leg].head<2>() = _current_swing_foot_target;
+            ref.t_start[_current_swing_leg] = time;
+            ref.t_goal[_current_swing_leg]  = time + _opt.step_duration * 0.8; // HACK HARDCODED
+            
+        }
+        else
+        {
+            Logger::info(Logger::Severity::HIGH, "Skipping step..\n");
+        }
         
         Logger::info() << "Computed step  : " << computed_step.transpose() << Logger::endl();
         Logger::info() << "Target foot pos: " << _current_swing_foot_target.transpose() << Logger::endl();
         
-        static auto lipext = MakeLipmExtended(OMEGA, _opt.step_duration);
-        Eigen::Vector3d sag_extended_state_next, sag_extended_state_nom;
-        lipext->integrate(sag_extended_state, sag_next_step, _opt.step_duration, sag_extended_state_next);
-        lipext->integrate(_ext_state, sag_u_nom, _opt.step_duration, sag_extended_state_nom);
-        _ext_state = sag_extended_state_nom;
-        Logger::info() << "Nominal next sagittal state is  : " << _ext_state.transpose() << Logger::endl();
-        Logger::info() << "Expecting next sagittal state as: " << sag_extended_state_next.transpose() << Logger::endl();
     }
     
     /* Sagittal update */
