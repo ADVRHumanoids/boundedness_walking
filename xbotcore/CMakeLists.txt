@@ -1,0 +1,1 @@
+add_subdirectory(mdof_walking_plugin/)
