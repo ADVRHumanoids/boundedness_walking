@@ -119,12 +119,19 @@ void mdof_walking_plugin::control_loop(double time, double period)
      * (e.g. from ROS you can send commands with
      *         rosservice call /mdof_walking_plugin_cmd "cmd: 'MY_COMMAND_1'"
      * If any command was received, the code inside the if statement is then executed. */
+	 
+	static bool started = false; 
+	if(!started && time - _start_time > 2.0)
+	{
+		_walker->set_vref(0.1);
+	    _walker->start(time, _state);
+		started = true;
+	}
 
     if(!current_command.str().empty()){
 
         if(current_command.str() == "WALK"){
-            _walker->set_vref(0.1);
-            _walker->start(time, _state);
+            
         }
 
         if(current_command.str() == "STOP"){
