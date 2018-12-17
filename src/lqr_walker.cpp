@@ -165,9 +165,10 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
         Logger::info() << "Target foot pos: " << _current_swing_foot_target.transpose() << Logger::endl();
         
         static auto lipext = MakeLipmExtended(OMEGA, _opt.step_duration);
-        Eigen::Vector3d sag_extended_state_next;
+        Eigen::Vector3d sag_extended_state_next, sag_extended_state_nom;
         lipext->integrate(sag_extended_state, sag_next_step, _opt.step_duration, sag_extended_state_next);
-        lipext->integrate(_ext_state, sag_u_nom, _opt.step_duration, _ext_state);
+        lipext->integrate(_ext_state, sag_u_nom, _opt.step_duration, sag_extended_state_nom);
+        _ext_state = sag_extended_state_nom;
         Logger::info() << "Nominal next sagittal state is  : " << _ext_state.transpose() << Logger::endl();
         Logger::info() << "Expecting next sagittal state as: " << sag_extended_state_next.transpose() << Logger::endl();
     }
