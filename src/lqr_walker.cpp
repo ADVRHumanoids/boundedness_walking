@@ -53,7 +53,8 @@ void mdof::Walker::sagittal_setup()
     _sag_Kx = sag_lqr.getStateFeedbackGain();
     _sag_Kv = sag_lqr.getOutputFeedforwardGain("vel");
     
-    Logger::info() << "Gain for sagittal plane is:\n" << _sag_Kx << Logger::endl();
+    Logger::info(Logger::Severity::HIGH) << "Feedback gain for sagittal plane is: " << _sag_Kx << "\n";
+    Logger::log() <<  "Vel ffw gain for sagittal plane is : " << _sag_Kv << Logger::endl();
 }
 
 
@@ -85,7 +86,9 @@ void mdof::Walker::lateral_setup()
     
     _lat_Kstep = lat_lqr.getOutputFeedforwardGainPreview("zmp")*dstep_ffwd;
     
-    Logger::info() << "Gain for lateral plane is:\n" << _lat_Kx << Logger::endl();
+    Logger::info(Logger::Severity::HIGH) << "Feedback gain for lateral plane is: " << _lat_Kx << "\n";
+    Logger::log() <<  "Vel ffw gain for lateral plane is : " << _lat_Kv << "\n";
+    Logger::log() <<  "Step ffw gain for lateral plane is: " << _lat_Kstep << Logger::endl();
     
 }
 
@@ -160,8 +163,8 @@ bool mdof::Walker::run(double time, const mdof::RobotState& state, mdof::RobotSt
             ref.foot_contact[_current_swing_leg] = false;
             ref.foot_pos_start[_current_swing_leg] = ref.foot_pos[_current_swing_leg];
             ref.foot_pos_goal[_current_swing_leg].head<2>() = _current_swing_foot_target;
-            ref.t_start[_current_swing_leg] = time;
-            ref.t_goal[_current_swing_leg]  = time + _opt.step_duration * 0.8; // HACK HARDCODED
+            ref.t_start[_current_swing_leg] = time + _opt.step_duration * 0.1;
+            ref.t_goal[_current_swing_leg]  = time + _opt.step_duration * 0.9; // HACK HARDCODED
             
         }
         else
