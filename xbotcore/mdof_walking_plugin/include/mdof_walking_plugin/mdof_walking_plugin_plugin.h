@@ -22,7 +22,7 @@
 
 #include <XCM/XBotControlPlugin.h>
 
-#include <multidof_walking/wpg/lqr_walker.h>
+#include <multidof_walking/wpg/simple_walker.h>
 #include <cartesian_interface/CartesianInterfaceImpl.h>
 
 namespace XBotPlugin {
@@ -52,8 +52,22 @@ protected:
 
 private:
     
-    void set_world_pose();
+    enum class State 
+    {
+        IDLE, HOMING, WALKING
+    };
+    
+    void run_idle(double time, double period);
+    void run_homing(double time, double period);
+    void run_walking(double time, double period);
 
+    void set_world_pose();
+    Eigen::Vector3d get_lfoot_pos() const;
+    Eigen::Vector3d get_rfoot_pos() const;
+
+
+    State _current_state;
+    
     XBot::RobotInterface::Ptr _robot;
     XBot::ModelInterface::Ptr _model;
 
@@ -66,7 +80,7 @@ private:
     std::vector<std::string> _feet_links;
     mdof::Walker::Ptr _walker;
     mdof::RobotState _state, _ref;
-    Eigen::Affine3d _T_lsole, _T_rsole;
+    Eigen::Vector3d _delta_lfoot_2, _delta_lfoot_3, _delta_rfoot_1, _delta_rfoot_4;
     
     XBot::Cartesian::CartesianInterfaceImpl::Ptr _ci;
     

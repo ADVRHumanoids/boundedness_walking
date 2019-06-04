@@ -1,0 +1,125 @@
+XBotCore:
+  config_path: "configs/CentauroConfig/configs/centauro_upperbody_impedance.yaml"
+
+XBotInterface:
+  urdf_path: "configs/CentauroConfig/urdf/centauro.urdf"
+  srdf_path: "configs/CentauroConfig/srdf/centauro.srdf"
+  joint_map_path: "configs/CentauroConfig/joint_map/centauro_joint_map.yaml"
+
+RobotInterface:
+  framework_name: "ROS"
+
+ModelInterface:
+  model_type: "RBDL"
+  is_model_floating_base: "true"
+  
+WalkingStackCI:
+  solver: "OpenSot"
+  problem_description:
+    solver_options:
+        back_end: "qpoases"
+    stack:
+      - ["Wheel_FL", "Wheel_FR", "Wheel_HR", "Wheel_HL"]
+      - ["Com", "LeftArm", "RightArm"]
+      - ["WaistRot", "Postural", "Ankle_FL", "Ankle_FR", "Ankle_HR", "Ankle_HL"]
+      
+    constraints: ["JointLimits", "VelocityLimits"]
+
+    Wheel_FL:
+      type: "Cartesian"
+      distal_link: "wheel_1"
+      indices: [0, 1, 2]
+    
+    Wheel_FR:
+      type: "Cartesian"
+      distal_link: "wheel_2"
+      indices: [0, 1, 2]
+    
+    Wheel_HL:
+      type: "Cartesian"
+      distal_link: "wheel_3"
+      indices: [0, 1, 2]
+    
+    Wheel_HR:
+      type: "Cartesian"
+      distal_link: "wheel_4"
+      indices: [0, 1, 2]
+      
+    Ankle_FL:
+      type: "Cartesian"
+      distal_link: "ankle2_1"
+      indices: [3, 4]
+      
+    
+    Ankle_FR:
+      type: "Cartesian"
+      distal_link: "ankle2_2"
+      indices: [3, 4]
+      
+    
+    Ankle_HL:
+      type: "Cartesian"
+      distal_link: "ankle2_3"
+      indices: [3, 4]
+    
+    Ankle_HR:
+      type: "Cartesian"
+      distal_link: "ankle2_4"
+      indices: [3, 4]
+    
+    LeftArm:
+      type: "Cartesian"
+      distal_link: "arm1_8"
+      base_link: "pelvis"
+      lambda: 0.1
+      weight: 10
+      
+    WaistRot:
+      type: "Cartesian"
+      distal_link: "pelvis"
+      lambda: 0.01
+      weight: 1.0
+      indices: [3, 4, 5]
+    
+    RightArm:
+      type: "Cartesian"
+      distal_link: "arm2_8"
+      base_link: "pelvis"
+      lambda: 0.1
+      weight: 10
+      
+    Postural:
+      type: "Postural"
+      lambda: 0.01
+      weight:
+        VIRTUALJOINT_1: 0.0
+        VIRTUALJOINT_2: 0.0
+        VIRTUALJOINT_3: 0.0
+        VIRTUALJOINT_4: 0.0
+        VIRTUALJOINT_5: 0.0
+        VIRTUALJOINT_6: 0.0
+        j_wheel_1: 0.0
+        j_wheel_2: 0.0
+        j_wheel_3: 0.0
+        j_wheel_4: 0.0
+      
+    Com:
+      type: "Com"
+  
+MasterCommunicationInterface:
+  framework_name: "ROS"
+
+XBotRTPlugins:
+  plugins: ["HomingExample", "mdof_walking_plugin"]
+  io_plugins: []
+  
+NRTPlugins:
+  plugins: []
+  
+WebServer:
+  enable: "true"
+  address: "127.0.0.1"
+  port: "8081"
+
+SimulationOptions:
+  verbose_mode: "true"

@@ -23,6 +23,7 @@
 REGISTER_XBOT_PLUGIN_(XBotPlugin::mdof_walking_plugin)
 
 using namespace XBot::Cartesian;
+using XBot::Logger;
 
 namespace XBotPlugin {
 
@@ -46,12 +47,12 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     _qdot = _q;
     
     YAML::Node yaml_file = YAML::LoadFile(handle->getPathToConfigFile());
-    ProblemDescription ik_problem(yaml_file["CartesianInterface"]["problem_description"], _model);
+    ProblemDescription ik_problem(yaml_file["WalkingStackCI"]["problem_description"], _model);
     std::string impl_name = "OpenSot";
     _ci = SoLib::getFactoryWithArgs<CartesianInterfaceImpl>("Cartesian" + impl_name + ".so", 
                                                             impl_name + "Impl", 
                                                             _model, ik_problem);
-    _ci->enableOtg(0.002);
+    _ci->enableOtg(0.001);
 
     /* Initialize a logger which saves to the specified file. Remember that
      * the current date/time is always appended to the provided filename,
@@ -61,7 +62,8 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     
     
     mdof::Walker::Options opt;
-    _walker = boost::make_shared<mdof::Walker>(0.002, opt);
+    opt.com_height = 0.55;
+    _walker = boost::make_shared<mdof::Walker>(0.001, opt);
     
     _feet_links = {"l_sole", "r_sole"};
 
@@ -79,20 +81,14 @@ void mdof_walking_plugin::on_start(double time)
 
     /* Save the robot starting config to a class member */
     _model->syncFrom(*_robot, XBot::Sync::Position, XBot::Sync::MotorSide);
-    set_world_pose();
     
-    _model->getCOM(_state.com_pos);
-    _state.zmp = _state.com_pos;
-    _state.zmp.z() = 0.0;
-    _state.eq_foot_pos = _state.zmp;
-    _model->getPose(_feet_links[0], _T_lsole);
-    _model->getPose(_feet_links[1], _T_rsole);
-    _state.foot_pos[0] = _T_lsole.translation();
-    _state.foot_pos[1] = _T_rsole.translation();
-    _state.foot_pos_goal = _state.foot_pos_start = _state.foot_pos;
-    _state.foot_contact.fill(true);
-    _ref = _state;
+//     Eigen::VectorXd q;
+//     _model->getJointPosition(q);
+//     q += Eigen::VectorXd::Random(q.size())/100;
+//     _model->setJointPosition(q);
+//     _model->update();
     
+    set_world_pose();    
     _ci->reset(time);
 
     /* Save the plugin starting time to a class member */
@@ -108,52 +104,36 @@ void mdof_walking_plugin::on_stop(double time)
 }
 
 
-void mdof_walking_plugin::control_loop(double time, double period)
+void mdof_walking_plugin::control_loop(double, double)
 {
-    /* This function is called on every control loop from when the plugin is start until
-     * it is stopped.
-     * Since this function is called within the real-time loop, you should not perform
-     * operations that are not rt-safe. */
-
-    /* The following code checks if any command was received from the plugin standard port
-     * (e.g. from ROS you can send commands with
-     *         rosservice call /mdof_walking_plugin_cmd "cmd: 'MY_COMMAND_1'"
-     * If any command was received, the code inside the if statement is then executed. */
-	 
-	static bool started = false; 
-	if(!started && time - _start_time > 2.0)
-	{
-		_walker->set_vref(0.1);
-	    _walker->start(time, _state);
-		started = true;
-	}
-
-    if(!current_command.str().empty()){
-
-        if(current_command.str() == "WALK"){
-            
+        
+    static double time = _start_time;
+    double period = 0.001;
+    
+    switch(_current_state)
+    {
+        case State::IDLE:
+        { 
+            run_idle(time, period);
+            break;
         }
-
-        if(current_command.str() == "STOP"){
-            _walker->set_vref(0.0);
-            _walker->stop();
+        
+        case State::HOMING:
+        {
+            run_homing(time, period);
+            break;
         }
-
+        
+        case State::WALKING :
+        {
+            run_walking(time, period);
+            break;
+        }
     }
     
-    _state = _ref;
-    _walker->run(time, _state, _ref);
-    
     _ref.log(_logger);
-    
-    _ci->setComPositionReference(_ref.com_pos);
-    
-    _T_lsole.translation() = _ref.foot_pos[0];
-    _ci->setPoseReference(_feet_links[0], _T_lsole);
-    
-    _T_rsole.translation() = _ref.foot_pos[1];
-    _ci->setPoseReference(_feet_links[1], _T_rsole);
-    
+
+    /* Run CI loop */
     if(!_ci->update(time, period))
     {
         return;
@@ -171,21 +151,134 @@ void mdof_walking_plugin::control_loop(double time, double period)
     _robot->setReferenceFrom(*_model, XBot::Sync::Position);
     _robot->move();
 
+    time += period;
+
+}
+
+void mdof_walking_plugin::run_idle(double time, double period)
+{
+    // prepare transition to homing
+    // com must be on top of the stance foot centre
+
+    Eigen::Vector3d com_ref = get_lfoot_pos();
+    com_ref.z() += 0.55;
+
+    Logger::info() << "Setting com ref to: " << com_ref.transpose() << Logger::endl();
+
+    _ci->setTargetComPosition(com_ref, 5.0);
+
+    _current_state = State::HOMING;
+}
+
+void mdof_walking_plugin::run_homing(double time, double period)
+{
+    // do nothing as the CI is updated externally
+
+    if(_ci->getTaskState("com") == XBot::Cartesian::State::Online)
+    {
+        // homing finished, prepare transition to walking
+
+        _model->getCOM(_state.com_pos);
+        _state.com_vel.setZero();
+        _state.foot_pos[0] = get_lfoot_pos();
+        _state.foot_pos[1] = get_rfoot_pos();
+        _ref = _state;
+
+        Eigen::Affine3d w_T_f1, w_T_f2, w_T_f3, w_T_f4;
+        _model->getPose("wheel_1", w_T_f1);
+        _model->getPose("wheel_2", w_T_f2);
+        _model->getPose("wheel_3", w_T_f3);
+        _model->getPose("wheel_4", w_T_f4);
+
+        _delta_rfoot_1 = w_T_f1.translation() - get_rfoot_pos();
+        _delta_rfoot_4 = w_T_f4.translation() - get_rfoot_pos();
+        _delta_lfoot_2 = w_T_f2.translation() - get_lfoot_pos();
+        _delta_lfoot_3 = w_T_f3.translation() - get_lfoot_pos();
+
+        Logger::info() << "Delta foot: " <<  _delta_rfoot_1.transpose() << Logger::endl();
+        Logger::info() << "Delta foot: " <<  _delta_rfoot_4.transpose() << Logger::endl();
+        Logger::info() << "Delta foot: " <<  _delta_lfoot_2.transpose() << Logger::endl();
+        Logger::info() << "Delta foot: " <<  _delta_lfoot_3.transpose() << Logger::endl();
+
+        _walker->start(time, _state);
+
+        _current_state = State::WALKING;
+    }
+}
+
+void mdof_walking_plugin::run_walking(double time, double period)
+{
+    _state = _ref;
+
+    _walker->set_vref(0.1);
+    _walker->run(time, _state, _ref);
+
+    for(uint i : {0, 1})
+    {
+        _ref.foot_pos[i] = mdof::compute_swing_trajectory(
+            _ref.foot_pos_start[i],
+            _ref.foot_pos_goal[i],
+            0.10,
+            _ref.t_start[i],
+            _ref.t_goal[i],
+            time,
+            1.5);
+    }
+
+    Eigen::Affine3d w_T_f;
+
+    _ci->getPoseReferenceRaw("wheel_2", w_T_f);
+    w_T_f.translation() = _ref.foot_pos[0] + _delta_lfoot_2;
+    _ci->setPoseReference("wheel_2", w_T_f);
+
+    _ci->getPoseReferenceRaw("wheel_3", w_T_f);
+    w_T_f.translation() = _ref.foot_pos[0] + _delta_lfoot_3;
+    _ci->setPoseReference("wheel_3", w_T_f);
+
+    _ci->getPoseReferenceRaw("wheel_1", w_T_f);
+    w_T_f.translation() = _ref.foot_pos[1] + _delta_rfoot_1;
+    _ci->setPoseReference("wheel_1", w_T_f);
+
+    _ci->getPoseReferenceRaw("wheel_4", w_T_f);
+    w_T_f.translation() = _ref.foot_pos[1] + _delta_rfoot_4;
+    _ci->setPoseReference("wheel_4", w_T_f);
+
+    _ci->setComPositionReference(_ref.com_pos);
 }
 
 void mdof_walking_plugin::set_world_pose()
 {
-    Eigen::Affine3d Tlsole;
-    _model->getPose("l_sole", Tlsole);
-    
-    Eigen::Affine3d Trsole;
-    _model->getPose("r_sole", Trsole);
-    
-    auto Tmid = Tlsole;
-    Tmid.translation() = (Tlsole.translation() + Trsole.translation()) / 2.0;
-    
-    _model->setFloatingBasePose(Tmid.inverse());
+    Eigen::Affine3d w_T_l;
+    w_T_l.setIdentity();
+    w_T_l.translation() = get_lfoot_pos();
+
+    Eigen::Affine3d w_T_pelvis;
+    _model->getFloatingBasePose(w_T_pelvis);
+
+    _model->setFloatingBasePose(w_T_pelvis*w_T_l.inverse());
     _model->update();
+}
+
+Eigen::Vector3d mdof_walking_plugin::get_rfoot_pos() const
+{
+    Eigen::Affine3d w_T_f1;
+    _model->getPose("wheel_1", w_T_f1);
+
+    Eigen::Affine3d w_T_f4;
+    _model->getPose("wheel_4", w_T_f4);
+
+    return 0.5*(w_T_f1.translation() + w_T_f4.translation());
+}
+
+Eigen::Vector3d mdof_walking_plugin::get_lfoot_pos() const
+{
+    Eigen::Affine3d w_T_f2;
+    _model->getPose("wheel_2", w_T_f2);
+
+    Eigen::Affine3d w_T_f3;
+    _model->getPose("wheel_3", w_T_f3);
+
+    return 0.5*(w_T_f2.translation() + w_T_f3.translation());
 }
 
 
