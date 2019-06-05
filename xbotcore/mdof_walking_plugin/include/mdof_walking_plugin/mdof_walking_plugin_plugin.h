@@ -72,6 +72,8 @@ private:
     XBot::ModelInterface::Ptr _model;
 
     double _start_time;
+    double _time;
+    double _period;
 
     Eigen::VectorXd _q, _qdot;
 

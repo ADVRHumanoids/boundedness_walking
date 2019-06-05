@@ -46,13 +46,15 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     _q.resize(_model->getJointNum());
     _qdot = _q;
     
+    _period = 0.002;
+    
     YAML::Node yaml_file = YAML::LoadFile(handle->getPathToConfigFile());
     ProblemDescription ik_problem(yaml_file["WalkingStackCI"]["problem_description"], _model);
     std::string impl_name = "OpenSot";
     _ci = SoLib::getFactoryWithArgs<CartesianInterfaceImpl>("Cartesian" + impl_name + ".so", 
                                                             impl_name + "Impl", 
                                                             _model, ik_problem);
-    _ci->enableOtg(0.001);
+    _ci->enableOtg(_period);
 
     /* Initialize a logger which saves to the specified file. Remember that
      * the current date/time is always appended to the provided filename,
@@ -63,9 +65,11 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     
     mdof::Walker::Options opt;
     opt.com_height = 0.55;
-    _walker = boost::make_shared<mdof::Walker>(0.001, opt);
+    _walker = boost::make_shared<mdof::Walker>(_period, opt);
     
     _feet_links = {"l_sole", "r_sole"};
+    
+    _ci->update(0, 0);
 
     return true;
 
@@ -92,7 +96,7 @@ void mdof_walking_plugin::on_start(double time)
     _ci->reset(time);
 
     /* Save the plugin starting time to a class member */
-    _start_time = time;
+    _time = _start_time = time;
 }
 
 void mdof_walking_plugin::on_stop(double time)
@@ -106,10 +110,10 @@ void mdof_walking_plugin::on_stop(double time)
 
 void mdof_walking_plugin::control_loop(double, double)
 {
-        
-    static double time = _start_time;
-    double period = 0.001;
     
+    double time = _time;
+    double period = _period;
+        
     switch(_current_state)
     {
         case State::IDLE:
@@ -151,7 +155,7 @@ void mdof_walking_plugin::control_loop(double, double)
     _robot->setReferenceFrom(*_model, XBot::Sync::Position);
     _robot->move();
 
-    time += period;
+    _time += period;
 
 }
 

@@ -140,11 +140,11 @@ bool mdof::Walker::run(double time,
         _swing_foot = 1 - _swing_foot;
     }
     
-    Eigen::Vector4d x = x_ext.head<4>();
-    _lipm->integrate(x, _current_step, _dt, x);
+    Eigen::Vector4d x = x_ext.head<4>(), x_new;
+    _lipm->integrate(x, _current_step, _dt, x_new);
     
-    ref.com_pos.head<2>() = x.head<2>();
-    ref.com_vel.head<2>() = x.segment<2>(2);
+    ref.com_pos.head<2>() = x_new.head<2>();
+    ref.com_vel.head<2>() = x_new.segment<2>(2);
     ref.zmp.head<2>() = _current_step.head<2>();
     
     return true;
