@@ -19,6 +19,7 @@ target_link_libraries(test_1 mdof_wpg)
 
 
 add_subdirectory(xbotcore/)
+include(src/gui/gui.cmake)
 
 install(TARGETS mdof_wpg mdof_wpg
     EXPORT mdof_wpg

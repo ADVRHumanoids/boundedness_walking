@@ -20,10 +20,17 @@
 #ifndef mdof_walking_plugin_PLUGIN_H_
 #define mdof_walking_plugin_PLUGIN_H_
 
+#include <atomic>
+
 #include <XCM/XBotControlPlugin.h>
+#include <XBotCore-interfaces/XBotRosUtils.h>
+
+#include <cartesian_interface/CartesianInterfaceImpl.h>
 
 #include <multidof_walking/wpg/simple_walker.h>
-#include <cartesian_interface/CartesianInterfaceImpl.h>
+
+#include <geometry_msgs/TwistStamped.h>
+#include <std_srvs/SetBool.h>
 
 namespace XBotPlugin {
 
@@ -64,9 +71,19 @@ private:
     void set_world_pose();
     Eigen::Vector3d get_lfoot_pos() const;
     Eigen::Vector3d get_rfoot_pos() const;
+    
+    void on_vref_recv(const geometry_msgs::TwistStampedConstPtr& msg);
+    bool on_start_stop_requested(std_srvs::SetBoolRequest& req, 
+                                 std_srvs::SetBoolResponse& res);
 
 
     State _current_state;
+    std::atomic<bool> _started;
+    
+    XBot::RosUtils::RosHandle::Ptr _ros_handle;
+    XBot::RosUtils::SubscriberWrapper::Ptr _vref_sub;
+    XBot::RosUtils::ServiceServerWrapper::Ptr _start_srv;
+    
     
     XBot::RobotInterface::Ptr _robot;
     XBot::ModelInterface::Ptr _model;
@@ -82,6 +99,7 @@ private:
     std::vector<std::string> _feet_links;
     mdof::Walker::Ptr _walker;
     mdof::RobotState _state, _ref;
+    double _vref;
     Eigen::Vector3d _delta_lfoot_2, _delta_lfoot_3, _delta_rfoot_1, _delta_rfoot_4;
     
     XBot::Cartesian::CartesianInterfaceImpl::Ptr _ci;

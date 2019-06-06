@@ -71,6 +71,15 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     
     _ci->update(0, 0);
 
+    /* ROS */
+    _ros_handle = handle->getRosHandle();
+    _vref_sub = _ros_handle->subscribeRT("/multidof_walking/velocity_reference", 1, 
+                                         &mdof_walking_plugin::on_vref_recv, this);
+    _start_srv = _ros_handle->advertiseService("/multidof_walking/start_stop", 
+                                               &mdof_walking_plugin::on_start_stop_requested, this);
+    _started = false;
+    
+    
     return true;
 
 
@@ -110,6 +119,8 @@ void mdof_walking_plugin::on_stop(double time)
 
 void mdof_walking_plugin::control_loop(double, double)
 {
+    
+    _ros_handle->callAvailable();
     
     double time = _time;
     double period = _period;
@@ -167,11 +178,12 @@ void mdof_walking_plugin::run_idle(double time, double period)
     Eigen::Vector3d com_ref = get_lfoot_pos();
     com_ref.z() += 0.55;
 
-    Logger::info() << "Setting com ref to: " << com_ref.transpose() << Logger::endl();
-
-    _ci->setTargetComPosition(com_ref, 5.0);
-
-    _current_state = State::HOMING;
+    if(_started)
+    {
+        Logger::info() << "Setting com ref to: " << com_ref.transpose() << Logger::endl();
+        _ci->setTargetComPosition(com_ref, 5.0);
+        _current_state = State::HOMING;
+    }
 }
 
 void mdof_walking_plugin::run_homing(double time, double period)
@@ -181,6 +193,12 @@ void mdof_walking_plugin::run_homing(double time, double period)
     if(_ci->getTaskState("com") == XBot::Cartesian::State::Online)
     {
         // homing finished, prepare transition to walking
+        
+        if(!_started)
+        {
+            _current_state = State::IDLE;
+            return;
+        }
 
         _model->getCOM(_state.com_pos);
         _state.com_vel.setZero();
@@ -207,14 +225,20 @@ void mdof_walking_plugin::run_homing(double time, double period)
         _walker->start(time, _state);
 
         _current_state = State::WALKING;
+        _vref = 0.0;
     }
 }
 
 void mdof_walking_plugin::run_walking(double time, double period)
 {
     _state = _ref;
+    
+    if(!_started)
+    {
+        _vref = 0.0;
+    }
 
-    _walker->set_vref(0.1);
+    _walker->set_vref(_vref);
     _walker->run(time, _state, _ref);
 
     for(uint i : {0, 1})
@@ -248,7 +272,15 @@ void mdof_walking_plugin::run_walking(double time, double period)
     _ci->setPoseReference("wheel_4", w_T_f);
 
     _ci->setComPositionReference(_ref.com_pos);
+    
+    if(!_started && time >= _ref.t_goal[0] && time >= _ref.t_goal[1] && _ref.com_vel.norm() < 0.01)
+    {
+        _current_state = State::IDLE;
+        _vref = 0.0;
+    }
 }
+
+
 
 void mdof_walking_plugin::set_world_pose()
 {
@@ -296,6 +328,21 @@ bool mdof_walking_plugin::close()
 
     return true;
 }
+
+void mdof_walking_plugin::on_vref_recv(const geometry_msgs::TwistStampedConstPtr& msg)
+{
+    _vref = msg->twist.linear.x;
+}
+
+bool mdof_walking_plugin::on_start_stop_requested(std_srvs::SetBoolRequest& req, 
+                                                  std_srvs::SetBoolResponse& res)
+{
+    Logger::info(Logger::Severity::HIGH, "Start stop\n");
+    
+    _started = req.data;
+    return true;
+}
+
 
 mdof_walking_plugin::~mdof_walking_plugin()
 {
