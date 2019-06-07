@@ -40,7 +40,6 @@ WalkingGui::WalkingGui(QWidget * parent)
     _vel_x_sync._slider = findChild<QSlider *>("sliderX");
     _vel_x_sync._spinbox = findChild<QDoubleSpinBox *>("spinBoxX");
     _vel_x_sync.set_range(-0.2, 0.2);
-    _vel_x_sync._value = &_msg.twist.linear.x;
     _vel_x_sync.connect();
     
     auto on_vel_changed = [this](double v)
@@ -51,9 +50,41 @@ WalkingGui::WalkingGui(QWidget * parent)
     
     _vel_x_sync._f = on_vel_changed;
     
+    /* Proportional momentum gain */
+    _kp_sync._slider = findChild<QSlider *>("sliderKp");
+    _kp_sync._spinbox = findChild<QDoubleSpinBox *>("spinBoxKp");
+    _kp_sync.set_range(0.0, 100.0);
+    _kp_sync.connect();
+    
+    auto on_kp_changed = [this](double kp)
+    {
+        std_msgs::Float64 msg;
+        msg.data = kp;
+        _kp_pub.publish(msg);
+    };
+    
+    _kp_sync._f = on_kp_changed;
+    
+    /* Proportional momentum gain */
+    _kd_sync._slider = findChild<QSlider *>("sliderKd");
+    _kd_sync._spinbox = findChild<QDoubleSpinBox *>("spinBoxKd");
+    _kd_sync.set_range(0.0, 10.0);
+    _kd_sync.connect();
+    
+    auto on_kd_changed = [this](double kd)
+    {
+        std_msgs::Float64 msg;
+        msg.data = kd;
+        _kd_pub.publish(msg);
+    };
+    
+    _kd_sync._f = on_kd_changed;
+    
     /* Create publisher */
     ros::NodeHandle nh;
     _pub = nh.advertise<geometry_msgs::TwistStamped>("multidof_walking/velocity_reference", 1);
+    _kp_pub = nh.advertise<std_msgs::Float64>("multidof_walking/momentum/k_p", 1);
+    _kd_pub = nh.advertise<std_msgs::Float64>("multidof_walking/momentum/k_d", 1);
     
     /* Buttons */
     auto * button_start = findChild<QPushButton *>("buttonStart");

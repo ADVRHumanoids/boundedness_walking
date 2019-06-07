@@ -2,6 +2,7 @@
 #include <QWidget>
 
 #include <geometry_msgs/TwistStamped.h>
+#include <std_msgs/Float64.h>
 #include <ros/ros.h>
 
 class WalkingGui : public QWidget
@@ -18,7 +19,6 @@ private:
         double _min, _max;
         QSlider * _slider;
         QDoubleSpinBox * _spinbox;
-        double * _value;
         std::function<void(double)> _f;
         
         void connect();
@@ -33,9 +33,9 @@ private:
     void on_start(bool checked);
     void on_stop(bool checked);
     
-    SliderSync _vel_x_sync;
+    SliderSync _vel_x_sync, _kp_sync, _kd_sync;
     
     geometry_msgs::TwistStamped _msg;
-    ros::Publisher _pub;
+    ros::Publisher _pub, _kp_pub, _kd_pub;
     
 };

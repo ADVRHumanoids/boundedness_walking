@@ -20,8 +20,8 @@ WalkingStackCI:
         back_end: "qpoases"
     stack:
       - ["Wheel_FL", "Wheel_FR", "Wheel_HR", "Wheel_HL"]
-      - ["Com", "LeftArm", "RightArm"]
-      - ["WaistRot", "Postural", "Ankle_FL", "Ankle_FR", "Ankle_HR", "Ankle_HL"]
+      - ["Com", "WaistRot", "LeftArm", "RightArm"]
+      - ["Postural", "Ankle_FL", "Ankle_FR", "Ankle_HR", "Ankle_HL"]
       
     constraints: ["JointLimits", "VelocityLimits"]
 

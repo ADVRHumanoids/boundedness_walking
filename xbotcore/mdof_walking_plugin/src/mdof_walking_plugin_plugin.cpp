@@ -37,6 +37,7 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     /* Save robot to a private member. */
     _robot = handle->getRobotInterface();
     _model = XBot::ModelInterface::getModel(handle->getPathToConfigFile());
+    auto imu = _robot->getImu().begin()->second;
     
     Eigen::VectorXd qhome;
     _model->getRobotState("home", qhome);
@@ -78,6 +79,9 @@ bool mdof_walking_plugin::init_control_plugin(XBot::Handle::Ptr handle)
     _start_srv = _ros_handle->advertiseService("/multidof_walking/start_stop", 
                                                &mdof_walking_plugin::on_start_stop_requested, this);
     _started = false;
+    
+    /* Momentum controller */
+    _momentum = std::make_shared<mdof::MomentumController>(imu, _period);
     
     
     return true;
@@ -243,6 +247,11 @@ void mdof_walking_plugin::run_walking(double time, double period)
 
     for(uint i : {0, 1})
     {
+        if(_ref.foot_contact[i])
+        {
+            continue;
+        }
+        
         _ref.foot_pos[i] = mdof::compute_swing_trajectory(
             _ref.foot_pos_start[i],
             _ref.foot_pos_goal[i],
@@ -251,6 +260,8 @@ void mdof_walking_plugin::run_walking(double time, double period)
             _ref.t_goal[i],
             time,
             1.5);
+        
+        _ref.foot_contact[i] = true;
     }
 
     Eigen::Affine3d w_T_f;
@@ -280,6 +291,30 @@ void mdof_walking_plugin::run_walking(double time, double period)
     }
 }
 
+void mdof_walking_plugin::run_momentum(double time, double period)
+{
+    if(_ref.foot_contact[0] && _ref.foot_contact[1])
+    {
+        // double stance phase, set pelvis to horizontal orientation 
+        return;
+    }
+    
+    // single stance..
+    
+    _momentum->update();
+    
+    Eigen::Matrix3d w_R_pelvis;
+    _model->getOrientation("pelvis", w_R_pelvis);
+    
+    Eigen::Vector6d twist;
+    twist.setZero();
+    twist.tail<3>() = w_R_pelvis * _momentum->getOmega();
+    
+    _ci->setControlMode("pelvis", XBot::Cartesian::ControlType::Velocity);
+    _ci->setVelocityReference("pelvis", twist);
+    
+    
+}
 
 
 void mdof_walking_plugin::set_world_pose()

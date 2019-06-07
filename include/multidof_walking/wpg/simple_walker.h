@@ -14,7 +14,10 @@ namespace mdof {
       
     public:
         
-        typedef std::function<void(const Eigen::Vector3d&, const Eigen::Vector3d&, double, double)> StepCallback;
+        typedef std::function<void(const Eigen::Vector3d&, 
+                                   const Eigen::Vector3d&, 
+                                   double, 
+                                   double)> StepCallback;
         
         typedef boost::shared_ptr<Walker> Ptr;
         
@@ -130,14 +133,15 @@ bool mdof::Walker::run(double time,
         
         _next_step = _current_step + _Kx * x_ext + _Kv * _vref;
         
-        
         ref.foot_pos_start[_swing_foot].head<2>() = state.foot_pos[_swing_foot].head<2>();
         ref.foot_pos_goal[_swing_foot].head<2>() = _next_step.head<2>();
         ref.t_start[_swing_foot] = time;
         ref.t_goal[_swing_foot] = time + _opt.step_duration * 0.8;
+        ref.foot_contact[_swing_foot] = false;
         
         _last_step_time = time;
         _swing_foot = 1 - _swing_foot;
+        
     }
     
     Eigen::Vector4d x = x_ext.head<4>(), x_new;

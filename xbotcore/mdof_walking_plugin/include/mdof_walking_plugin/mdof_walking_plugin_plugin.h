@@ -28,6 +28,7 @@
 #include <cartesian_interface/CartesianInterfaceImpl.h>
 
 #include <multidof_walking/wpg/simple_walker.h>
+#include <multidof_walking/controllers/momentum.h>
 
 #include <geometry_msgs/TwistStamped.h>
 #include <std_srvs/SetBool.h>
@@ -67,6 +68,7 @@ private:
     void run_idle(double time, double period);
     void run_homing(double time, double period);
     void run_walking(double time, double period);
+    void run_momentum(double time, double period);
 
     void set_world_pose();
     Eigen::Vector3d get_lfoot_pos() const;
@@ -87,6 +89,8 @@ private:
     
     XBot::RobotInterface::Ptr _robot;
     XBot::ModelInterface::Ptr _model;
+    
+    mdof::MomentumController::Ptr _momentum;
 
     double _start_time;
     double _time;
